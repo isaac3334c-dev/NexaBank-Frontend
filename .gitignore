@@ -8,6 +8,6 @@ dev-dist/
 !.env.example
 .DS_Store
 coverage/
-.claude/settings.local.json
+.claude/
 *.log
 *.tsbuildinfo
