@@ -1,6 +1,7 @@
 node_modules/
 dist/
 dist-ssr/
+dev-dist/
 *.local
 .env
 .env.*
@@ -9,3 +10,4 @@ dist-ssr/
 coverage/
 .claude/settings.local.json
 *.log
+*.tsbuildinfo

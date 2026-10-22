@@ -1,0 +1,113 @@
+/* Obsidiana y Lima — dark-first design tokens.
+ *
+ * Dark is the DEFAULT in :root (not behind a prefers-color-scheme query —
+ * the brief's intent is an explicit dark-by-default product, not an
+ * OS-driven one). Light is an explicit opt-in via [data-theme="light"],
+ * reachable today only from the /dev/ui gallery toggle (no Settings screen
+ * exists yet — see docs/DECISIONS.md "Obsidiana y Lima redesign" section).
+ *
+ * Token provenance:
+ * - Base palette + --radius-card/sheet/pill + --font-sans/mono values below
+ *   come directly from the brief.
+ * - `-soft` tint variants, --color-info, and the light-mode tab-bar rgba are
+ *   NOT specified by the brief and were derived here. Exact values + WCAG
+ *   rationale are documented in docs/DECISIONS.md.
+ * - --color-text-subtle has been REMOVED (see DECISIONS.md — it measured
+ *   2.86:1 contrast against --color-bg, below the 3:1 AA minimum for
+ *   non-text/large-text use, and was being used for small text). Every
+ *   former --color-text-subtle usage across components now reads
+ *   --color-text-muted instead.
+ * - --color-accent has been REMOVED as a distinct token. This concept has
+ *   exactly one vivid accent (lime) used for both primary actions and
+ *   success/money-in — anything that previously referenced --color-accent
+ *   now points at --color-primary directly.
+ */
+
+:root {
+  /* Surfaces */
+  --color-bg: #0A0B0D;
+  --color-surface: #141619;
+  --color-surface-2: #1C1F24;
+  --color-border: #2A2E35;
+
+  /* Text */
+  --color-text: #F2F0EA;
+  --color-text-muted: #8E929B;
+
+  /* Accent (the ONLY vivid color in this system) */
+  --color-primary: #C6F432;
+  --color-primary-hover: #D4FA5C;
+  --color-on-primary: #0A0B0D;
+  --color-primary-soft: color-mix(in srgb, var(--color-primary) 16%, transparent);
+
+  /* Semantic colors */
+  --color-success: #C6F432;
+  --color-success-soft: color-mix(in srgb, var(--color-success) 16%, transparent);
+  --color-danger: #FF5A4E;
+  --color-danger-soft: color-mix(in srgb, var(--color-danger) 16%, transparent);
+  --color-warning: #F5B642;
+  --color-warning-soft: color-mix(in srgb, var(--color-warning) 16%, transparent);
+
+  /* Derived: not in the brief's palette. Kept as a muted, desaturated blue so
+     it reads as a neutral/calm indicator and never competes with lime as a
+     second "vivid" color (see DECISIONS.md). Tint opacity is 12% (not the
+     16% used by the other soft variants) — measured contrast of this text
+     color against surface requires a lower tint to stay >=4.5:1 AA for
+     13px badge text; see docs/DECISIONS.md for the measured ratios. */
+  --color-info: #7C8CA6;
+  --color-info-soft: color-mix(in srgb, var(--color-info) 12%, transparent);
+
+  /* Amounts */
+  --color-amount-in: var(--color-success);
+  --color-amount-out: var(--color-text);
+
+  /* Radii */
+  --radius-card: 20px;
+  --radius-sheet: 28px;
+  --radius-pill: 999px;
+
+  /* Fonts */
+  --font-sans: "Geist", Manrope, system-ui, sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, monospace;
+
+  /* Floating tab bar translucent background. The dark value is given
+     directly by the brief (rgba(20,22,25,.8), which is --color-surface-2
+     at 80% alpha). The light-mode value below is a DERIVED equivalent —
+     not specified by the brief — see docs/DECISIONS.md. */
+  --tabbar-bg: rgba(20, 22, 25, 0.8);
+}
+
+:root[data-theme="light"] {
+  --color-bg: #F5F3EE;
+  --color-surface: #FFFFFF;
+  --color-surface-2: #ECE9E2;
+  --color-border: #DDD8CE;
+  --color-text: #121316;
+  --color-text-muted: #5F636B;
+
+  --color-success: #3F6212;
+  --color-success-soft: color-mix(in srgb, var(--color-success) 14%, transparent);
+  /* Danger/warning in light mode use a lower tint than the 14% baseline:
+     both D92D20 and B54708 are dark, saturated colors, so tinting white
+     toward them at 14% drags the background close enough to the text color
+     to fail 4.5:1 AA for 13px badge text. 4%/12% respectively keep the same
+     visual intent (a light colored wash) while staying AA-compliant — see
+     docs/DECISIONS.md for the measured ratios at each step. */
+  --color-danger: #D92D20;
+  --color-danger-soft: color-mix(in srgb, var(--color-danger) 4%, transparent);
+  --color-warning: #B54708;
+  --color-warning-soft: color-mix(in srgb, var(--color-warning) 12%, transparent);
+
+  /* Slightly higher opacity than dark mode for legibility on a light bg. */
+  --color-info: #51607A;
+  --color-info-soft: color-mix(in srgb, var(--color-info) 14%, transparent);
+
+  /* Primary/lime stays identical in both themes — it's always a light,
+     saturated fill regardless of surrounding theme, so its soft tint uses
+     the same slightly-higher light-mode opacity as the other soft tints. */
+  --color-primary-soft: color-mix(in srgb, var(--color-primary) 14%, transparent);
+
+  /* Derived equivalent of the brief's dark rgba(20,22,25,.8) tab-bar
+     background: same alpha, light surface color instead. */
+  --tabbar-bg: rgba(255, 255, 255, 0.8);
+}

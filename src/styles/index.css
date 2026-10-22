@@ -1,0 +1,245 @@
+@import "tailwindcss";
+@import "./tokens.css";
+@import "@fontsource/geist-sans/400.css";
+@import "@fontsource/geist-sans/500.css";
+@import "@fontsource/geist-sans/600.css";
+@import "@fontsource/geist-sans/700.css";
+@import "@fontsource/geist-mono/400.css";
+@import "@fontsource/geist-mono/500.css";
+@import "@fontsource/geist-mono/600.css";
+
+@theme {
+  /* Geist is self-hosted via @fontsource/geist-sans (same pattern as the
+     previous @fontsource/inter wiring). Manrope is kept only as the
+     documented CSS fallback name per the brief — it is NOT installed as a
+     package since Geist installed cleanly from npm; see docs/DECISIONS.md. */
+  --font-sans: "Geist", Manrope, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, "SFMono-Regular", monospace;
+
+  /* Colors mapped from CSS custom properties in tokens.css so utilities
+     like bg-primary / text-text-muted / bg-surface work and stay reactive
+     to the light/dark + [data-theme] overrides. */
+  --color-primary: var(--color-primary);
+  --color-primary-hover: var(--color-primary-hover);
+  --color-primary-soft: var(--color-primary-soft);
+  --color-on-primary: var(--color-on-primary);
+  --color-bg: var(--color-bg);
+  --color-surface: var(--color-surface);
+  --color-surface-2: var(--color-surface-2);
+  --color-border: var(--color-border);
+  --color-text: var(--color-text);
+  --color-text-muted: var(--color-text-muted);
+  --color-success: var(--color-success);
+  --color-success-soft: var(--color-success-soft);
+  --color-danger: var(--color-danger);
+  --color-danger-soft: var(--color-danger-soft);
+  --color-warning: var(--color-warning);
+  --color-warning-soft: var(--color-warning-soft);
+  --color-info: var(--color-info);
+  --color-info-soft: var(--color-info-soft);
+  --color-amount-in: var(--color-amount-in);
+  --color-amount-out: var(--color-amount-out);
+
+  /* Spacing scale (base 4) */
+  --spacing-1: 4px;
+  --spacing-2: 8px;
+  --spacing-3: 12px;
+  --spacing-4: 16px;
+  --spacing-5: 20px;
+  --spacing-6: 24px;
+  --spacing-8: 32px;
+  --spacing-10: 40px;
+  --spacing-12: 48px;
+
+  /* Radii. --radius-sm/md/lg/xl/full are kept for controls that aren't
+     specifically card/sheet/pill-shaped (e.g. small icon containers,
+     input fields). --radius-card/sheet/pill are the new Obsidiana y Lima
+     shape primitives used by Card, BottomSheet, and every pill/chip
+     control (buttons, badges) respectively. */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
+  --radius-full: 9999px;
+  --radius-card: 20px;
+  --radius-sheet: 28px;
+  --radius-pill: 999px;
+
+  /* Shadows — minimized by design (depth comes from layered surfaces +
+     1px borders, not shadows). --shadow-sm/md are kept for the rare
+     structural case (BottomSheet lift) but are intentionally subtle. */
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / .20);
+  --shadow-md: 0 4px 16px rgb(0 0 0 / .28);
+  --shadow-lg: 0 8px 28px rgb(0 0 0 / .32);
+
+  /* Motion */
+  --default-transition-duration: 200ms;
+  --default-transition-timing-function: cubic-bezier(.2,.8,.2,1);
+  /* Overshoot/spring curve — used for BottomSheet's entrance only, applied
+     inline where needed (not every transition should spring). */
+  --ease-spring: cubic-bezier(.34,1.56,.64,1);
+
+  /* Typography sizes (paired with line-height via text and leading utilities) */
+  --text-display: 36px;
+  --text-display--line-height: 44px;
+  --text-h1: 28px;
+  --text-h1--line-height: 36px;
+  --text-h2: 22px;
+  --text-h2--line-height: 30px;
+  --text-h3: 18px;
+  --text-h3--line-height: 26px;
+  --text-body: 16px;
+  --text-body--line-height: 24px;
+  --text-body-strong: 16px;
+  --text-body-strong--line-height: 24px;
+  --text-caption: 13px;
+  --text-caption--line-height: 18px;
+  --text-overline: 12px;
+  --text-overline--line-height: 16px;
+}
+
+@layer base {
+  html {
+    font-family: var(--font-sans);
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body {
+    background-color: var(--color-bg);
+    color: var(--color-text);
+    min-height: 100dvh;
+  }
+
+  input,
+  select,
+  textarea {
+    font-size: 16px; /* prevents iOS Safari auto-zoom on focus */
+  }
+
+  .tabular-nums,
+  .font-tabular {
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Font weights for the typography scale. Tailwind v4's --text-* theme
+     namespace only supports paired font-size/line-height (and the font-size
+     shorthand), not font-weight — so each size's weight from the spec
+     (display/h1 700, h2/h3/body-strong 600, body/caption 400, overline 600)
+     is applied here via the generated utility class name instead of a
+     --text-*--font-weight theme key (which is not valid @theme syntax). */
+  .text-display,
+  .text-h1 {
+    font-weight: 700;
+  }
+
+  .text-h2,
+  .text-h3,
+  .text-body-strong,
+  .text-overline {
+    font-weight: 600;
+  }
+
+  .overline {
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+@layer utilities {
+  .safe-top {
+    padding-top: env(safe-area-inset-top);
+  }
+  .safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}
+
+@keyframes scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* Used for wrong-OTP/wrong-PIN feedback. Duration is forced to 0.01ms by the
+   prefers-reduced-motion rule above (@layer base), so no separate reduced-
+   motion branch is needed here — the global rule already neutralizes it. */
+@keyframes shake {
+  10%,
+  90% {
+    transform: translateX(-1px);
+  }
+  20%,
+  80% {
+    transform: translateX(2px);
+  }
+  30%,
+  50%,
+  70% {
+    transform: translateX(-4px);
+  }
+  40%,
+  60% {
+    transform: translateX(4px);
+  }
+}
+
+@layer utilities {
+  .animate-shake {
+    animation: shake 0.4s ease-in-out;
+  }
+}
+
+/* Subtle skeleton shimmer — replaces Tailwind's default animate-pulse
+   (opacity 1 -> .5) with a much narrower opacity delta (1 -> .82) so the
+   effect is barely perceptible per the Obsidiana y Lima motion brief.
+   Duration is neutralized by the global prefers-reduced-motion rule above. */
+@keyframes skeleton-shimmer {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.82;
+  }
+}
+
+@layer utilities {
+  .animate-skeleton {
+    animation: skeleton-shimmer 1.8s ease-in-out infinite;
+  }
+}
+
+/* SVG checkmark "draw" animation for transfer success (ResultStep).
+   Animates stroke-dashoffset from the path's full length to 0. The exact
+   length depends on the path used at the call site, so the call site sets
+   --checkmark-length as an inline custom property consumed here. */
+@keyframes checkmark-draw {
+  from {
+    stroke-dashoffset: var(--checkmark-length, 48);
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@layer utilities {
+  .animate-checkmark {
+    animation: checkmark-draw 420ms cubic-bezier(.2,.8,.2,1) forwards;
+  }
+}

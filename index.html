@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="es" data-theme="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/png" href="/icons/icon-192.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1" />
+    <meta name="theme-color" content="#0A0B0D" />
+    <meta name="description" content="NexaBank Wallet — billetera digital. Envía, recibe y gestiona tu dinero." />
+    <link rel="apple-touch-icon" href="/icons/icon-192.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="NexaBank" />
+    <title>NexaBank Wallet</title>
+    <script>
+      // Pre-React theme application: avoids a flash-of-wrong-theme before
+      // React mounts and ThemeProvider reads localStorage. The static
+      // data-theme="dark" attribute on <html> above already covers the
+      // default case with zero JS; this only needs to upgrade to
+      // data-theme="light" if the user previously opted in explicitly.
+      try {
+        var stored = window.localStorage.getItem('nexabank-theme');
+        if (stored === 'light') {
+          document.documentElement.setAttribute('data-theme', 'light');
+        }
+      } catch (e) {
+        // ignore — falls back to the static dark default
+      }
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/app/main.tsx"></script>
+  </body>
+</html>
