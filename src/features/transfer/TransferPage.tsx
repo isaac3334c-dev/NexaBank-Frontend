@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AppHeader } from '@/shared/ui/AppHeader';
+import { StepSlide } from '@/shared/ui/StepSlide';
 import { useTransferFlowStore, type TransferStep } from './transferStore';
 import { ContactStep } from './steps/ContactStep';
 import { AmountStep } from './steps/AmountStep';
@@ -15,10 +16,6 @@ const STEP_TITLES: Record<string, string> = {
 };
 
 const STEP_ORDER: TransferStep[] = ['contact', 'amount', 'confirm', 'result'];
-
-function prefersReducedMotion(): boolean {
-  return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-}
 
 export function TransferPage() {
   const navigate = useNavigate();
@@ -62,28 +59,6 @@ export function TransferPage() {
           {step === 'result' && <ResultStep />}
         </StepSlide>
       </div>
-    </div>
-  );
-}
-
-function StepSlide({ children, direction }: { children: React.ReactNode; direction: 1 | -1 }) {
-  const [entered, setEntered] = useState(prefersReducedMotion());
-
-  useEffect(() => {
-    if (prefersReducedMotion()) return;
-    const raf = requestAnimationFrame(() => setEntered(true));
-    return () => cancelAnimationFrame(raf);
-  }, []);
-
-  return (
-    <div
-      className="flex-1 flex flex-col transition-[transform,opacity] duration-200 ease-[cubic-bezier(.2,.8,.2,1)] motion-reduce:transition-none"
-      style={{
-        transform: entered ? 'translateX(0)' : `translateX(${direction * 16}px)`,
-        opacity: entered ? 1 : 0,
-      }}
-    >
-      {children}
     </div>
   );
 }

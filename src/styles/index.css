@@ -163,6 +163,27 @@
   .safe-bottom {
     padding-bottom: env(safe-area-inset-bottom);
   }
+
+  /* Hero-sized Nexa (register form's bottom-half composition). Unlike the
+     square `compact`/default sizes, `hero` sizes the SQUARE CHARACTER ITSELF
+     (the inner <svg>, via size-hero-mark below) — this class sizes the
+     surrounding STAGE it stands in, which spans the full row width so the
+     button can be centered/overlapped on top of her without the character
+     looking off-center. Height is still responsive (clamp-like via min())
+     so it never outgrows the viewport on short screens. */
+  .size-hero {
+    width: 100%;
+    height: min(42vh, 280px);
+  }
+
+  /* The actual mascot mark within the hero stage: stays SQUARE (keyed off
+     height, not width) so the rounded-square head never stretches into a
+     rectangle even though its containing stage above is full-width. */
+  .size-hero-mark {
+    width: min(42vh, 280px);
+    height: min(42vh, 280px);
+    max-width: 100%;
+  }
 }
 
 @keyframes scale-in {
@@ -241,5 +262,286 @@
 @layer utilities {
   .animate-checkmark {
     animation: checkmark-draw 420ms cubic-bezier(.2,.8,.2,1) forwards;
+  }
+}
+
+/* Splash / App Launch Animation (SplashPage) — "particle constellation"
+   concept (adapted from a reference app-launch reel): a cloud of lime
+   particles converges into the brand mark's points, which then resolves
+   into a hollow (fill-less, outline-only) "N" glyph + wordmark, and exits
+   by zooming forward at the viewer. Stages: assemble -> resolve -> exit,
+   totalling a fixed 2.5s launch sequence (1300 + 700 + 500ms), all
+   neutralized to 0.01ms by the global prefers-reduced-motion rule above. */
+
+/* Each particle sets --sx/--sy (scattered start offset, px) and --ex/--ey
+   (its resting point on the "N" mark, px) inline; this single keyframe
+   drives every particle from its own scatter position to its own point. */
+@keyframes particle-converge {
+  from {
+    opacity: 0;
+    transform: translate(calc(-50% + var(--sx)), calc(-50% + var(--sy))) scale(0.4);
+  }
+  55% {
+    opacity: 1;
+  }
+  to {
+    opacity: 1;
+    transform: translate(calc(-50% + var(--ex)), calc(-50% + var(--ey))) scale(1);
+  }
+}
+
+@keyframes particle-dissolve {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+/* Resolves the particle cloud into the final hollow glyph. */
+@keyframes splash-mark-in {
+  from {
+    opacity: 0;
+    transform: scale(0.82);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes splash-wordmark-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Exit: the resolved mark + wordmark scale up sharply (as if flying toward
+   the viewer) while fading out, instead of a plain fade/slide. */
+@keyframes splash-zoom-exit {
+  from {
+    opacity: 1;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(2.6);
+  }
+}
+
+@layer utilities {
+  .animate-particle-converge {
+    animation: particle-converge 900ms var(--ease-spring) forwards;
+    animation-delay: var(--particle-delay, 0ms);
+  }
+  .animate-particle-dissolve {
+    animation: particle-dissolve 260ms ease-out forwards;
+  }
+  .animate-splash-mark-in {
+    animation: splash-mark-in 380ms var(--ease-spring) forwards;
+  }
+  .animate-splash-wordmark-in {
+    animation: splash-wordmark-in 420ms cubic-bezier(.2,.8,.2,1) forwards;
+  }
+  .animate-splash-zoom-exit {
+    animation: splash-zoom-exit 500ms cubic-bezier(.55,0,1,.45) forwards;
+  }
+}
+
+/* Slow "breathing" pulse for the radial glow reused on PhonePage (same
+   recipe as SplashPage's background) — a continuation of the launch
+   animation's atmosphere rather than a static backdrop, while entering the
+   phone number. Deliberately slow/subtle: this sits behind live form
+   interaction, not a one-shot launch sequence. */
+@keyframes bg-breathe {
+  0%, 100% {
+    opacity: 0.55;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.08);
+  }
+}
+
+@layer utilities {
+  .animate-bg-breathe {
+    animation: bg-breathe 4.5s ease-in-out infinite;
+  }
+}
+
+/* Short slide+fade used by AuthLayout on every auth-flow route change
+   (phone -> otp -> register -> create-pin -> pin). Re-keyed per pathname so
+   the animation restarts on each transition. */
+@keyframes auth-view-enter {
+  from {
+    opacity: 0;
+    transform: translateX(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@layer utilities {
+  .animate-auth-view-enter {
+    animation: auth-view-enter 260ms cubic-bezier(.2,.8,.2,1);
+  }
+}
+
+/* Nexa mascot (RegisterPage onboarding tour) — idle float/bob loop.
+   Infinite CSS animations ARE covered by the prefers-reduced-motion rule
+   above (@layer base forces animation-duration: 0.01ms + iteration-count: 1
+   on everything), so under reduced motion this resolves to its end state
+   (translateY(0)) almost instantly rather than looping — visually
+   acceptable as a static pose, so no separate JS-gated class is needed for
+   the bob itself. The blink keyframe below gets the same treatment. */
+@keyframes nexa-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-6px);
+  }
+}
+
+@layer utilities {
+  .animate-nexa-float {
+    animation: nexa-float 3.2s ease-in-out infinite;
+  }
+}
+
+/* Blink: quick scaleY squash on the eyes. Triggered occasionally via a JS
+   timer (NexaMascot.tsx) that toggles a class rather than looping this
+   animation infinitely — a real blink is a rare, irregular event, not a
+   steady loop, so a timer-driven one-shot class reads more natural than a
+   CSS infinite loop with a long idle phase. */
+@keyframes nexa-blink {
+  0%,
+  100% {
+    transform: scaleY(1);
+  }
+  50% {
+    transform: scaleY(0.1);
+  }
+}
+
+@layer utilities {
+  .animate-nexa-blink {
+    animation: nexa-blink 180ms ease-in-out;
+  }
+}
+
+/* Wave: rotates the arm element in and out around its origin (shoulder). */
+@keyframes nexa-wave {
+  0%,
+  100% {
+    transform: rotate(0deg);
+  }
+  20%,
+  60% {
+    transform: rotate(-24deg);
+  }
+  40%,
+  80% {
+    transform: rotate(4deg);
+  }
+}
+
+@layer utilities {
+  .animate-nexa-wave {
+    animation: nexa-wave 900ms ease-in-out 1;
+  }
+}
+
+/* Entrance: spring scale+translateY-in, reusing the same overshoot curve as
+   BottomSheet (--ease-spring, cubic-bezier(.34,1.56,.64,1)). */
+@keyframes nexa-entrance {
+  from {
+    opacity: 0;
+    transform: scale(0.6) translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@layer utilities {
+  .animate-nexa-entrance {
+    animation: nexa-entrance 480ms cubic-bezier(.34,1.56,.64,1) forwards;
+  }
+}
+
+/* Handoff: Nexa shrinking from center-stage hero size down into the small
+   corner badge shown alongside the registration form (step 6). Driven by
+   the same spring curve for consistency with the entrance. */
+@keyframes nexa-shrink {
+  from {
+    transform: scale(1) translateY(0);
+  }
+  to {
+    transform: scale(0.4) translateY(0);
+  }
+}
+
+@layer utilities {
+  .animate-nexa-shrink {
+    animation: nexa-shrink 420ms cubic-bezier(.34,1.56,.64,1) forwards;
+  }
+}
+
+/* "Ready" state (RegisterPage form, once valid) — a one-shot presenting
+   gesture distinct from `nexa-wave`: instead of a side-to-side rotation
+   from the shoulder, the arm swings forward-and-down, reading as Nexa
+   tossing/presenting something toward the submit button beneath it.
+   Played once (animation-iteration-count: 1) when validity flips to true,
+   then NexaMascot.tsx removes the class so it settles into its forward-down
+   resting pose without re-triggering on re-render. */
+@keyframes nexa-present {
+  0% {
+    transform: rotate(0deg) translateY(0);
+  }
+  45% {
+    transform: rotate(50deg) translateY(10px);
+  }
+  100% {
+    transform: rotate(32deg) translateY(4px);
+  }
+}
+
+@layer utilities {
+  .animate-nexa-present {
+    animation: nexa-present 560ms cubic-bezier(.2,.8,.2,1) 1;
+  }
+}
+
+/* Energetic idle float used only while Nexa is in the 'ready' state (form
+   valid, settled after the one-shot presenting gesture) — same loop as
+   nexa-float but with a touch more amplitude, so the "encouraging" read
+   continues after the gesture completes without introducing a whole new
+   motion language. Covered by the same global prefers-reduced-motion rule
+   as nexa-float (see that keyframe's comment above). */
+@keyframes nexa-float-energetic {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-9px);
+  }
+}
+
+@layer utilities {
+  .animate-nexa-float-energetic {
+    animation: nexa-float-energetic 2.6s ease-in-out infinite;
   }
 }

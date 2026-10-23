@@ -737,3 +737,159 @@ del mismo morado a `#0A0B0D` también.
   Servidor de dev detenido después de la verificación.
 - `docs/API_AUDIT.md` y `docs/API_IMPROVEMENTS.md` no se tocaron en esta fase. No se ejecutó ningún
   comando de `git`.
+
+---
+
+# Tour de bienvenida con "Nexa" (`/auth/register`)
+
+Reemplazo de la pantalla de registro (antes un formulario plano) por un tour animado de 7 pasos en la
+misma ruta, protagonizado por una mascota propia ("Nexa") que da la bienvenida y presenta 5 beneficios
+curados antes de revelar el formulario real. El agente que construyó esto se interrumpió por un error de
+API justo antes de escribir esta sección — el código, sin embargo, se completó y se verificó
+independientemente (ver "Verificación" abajo) antes de documentarlo aquí.
+
+## Mascota "Nexa"
+
+`src/shared/ui/NexaMascot.tsx` — cabeza cuadrada-redondeada en lima, evolución directa del badge de
+marca ya existente ("N" oscura sobre lima en `PhonePage.tsx`): aquí el badge gana cara en vez de letra,
+manteniendo el lenguaje geométrico/sobrio de "Obsidiana y Lima" en vez de una ilustración tipo cartoon
+que chocaría con el resto del sistema. Construida con SVG inline + un `div` de posición absoluta para el
+"brazo" del saludo, de forma que cada parte (ojos, boca, brazo) se anima de forma independiente.
+
+- **Estados**: `idle` (flotación continua + parpadeo ocasional), `wave` (brazo que rota desde el hombro,
+  usado solo en el paso de bienvenida), `excited` (boca más curva, usado en los pasos de cambio de
+  divisas y tarjetas virtuales — las dos variantes de expresión se reservan para los beneficios que el
+  agente consideró más "vendibles" dentro de la curaduría de 5, sin sobrecargar el resto con
+  animaciones extra). Prop `compact` para la pose reducida del paso 6 (insignia junto al formulario).
+- **Parpadeo** implementado con un temporizador aleatorio (2.6-5s, con jitter) que dispara una clase de
+  animación de un solo disparo, no un keyframe infinito — un parpadeo real es un evento irregular, no un
+  loop constante.
+- **Movimiento reducido**: las clases de animación de loop (flotación, saludo) se omiten directamente
+  del render bajo `prefers-reduced-motion: reduce` — no solo se confía en la regla CSS global que
+  neutraliza duraciones, porque esas animaciones tienen un punto medio no trivial (flotando a -6px, ojo
+  aplastado) y omitir la clase evita un frame visible de ese estado intermedio. El temporizador de
+  parpadeo tampoco se programa en absoluto bajo movimiento reducido.
+
+## Estructura del tour (`RegisterPage.tsx`)
+
+7 pasos en un único componente de estado (`slide` index), usando el `StepSlide` recién extraído a
+`src/shared/ui/StepSlide.tsx` (antes vivía solo dentro de `TransferPage.tsx`) para la transición
+horizontal de 200ms entre pasos — confirmado que `TransferPage.tsx` sigue funcionando igual tras la
+extracción (mismo comportamiento de `direction`/slide, solo cambió el origen del import).
+
+- Paso 0 (bienvenida, Nexa en `wave`) → pasos 1-5 (un beneficio curado cada uno, con ícono de
+  `lucide-react` propio por tarjeta) → paso 6 (Nexa en `compact`, formulario real de nombre/correo
+  reutilizando exactamente la lógica de registro que ya existía, sin reescribirla).
+- Avance manual por botón primario (nunca automático por temporizador) — el texto cambia por paso
+  ("Vamos" → "Siguiente" ×4 → "Comenzar mi registro").
+- Indicador de progreso: puntos en píldora, el activo en lima.
+- "Saltar" visible en todo momento durante el tour (pasos 0-5): salta directo al formulario (paso 6),
+  nunca se salta el registro en sí — verificado manualmente, aterriza en el formulario con los campos
+  usables.
+
+## Verificación ejecutada (independiente del agente, por la interrupción de API)
+
+- `npm run build` → compila limpio, sin errores de TypeScript strict.
+- `npm run dev` + navegación real con Playwright/Chromium headless: los 7 pasos recorridos en
+  secuencia con clics reales sobre los botones (no solo `curl`), captura de pantalla de cada paso,
+  cero errores de consola/página en todo el recorrido.
+- Flujo de "Saltar" probado por separado desde una carga fresca de `/auth/register`: aterriza
+  correctamente en el formulario con el campo de nombre usable.
+- `prefers-reduced-motion: reduce` probado con un contexto de navegador dedicado (`reducedMotion:
+  'reduce'` de Playwright) — sin errores, sin animaciones de loop visibles.
+- Servidor de desarrollo detenido después de verificar.
+
+---
+
+# Paso final del registro: composición hero de Nexa, mirada direccional y salto a Home
+
+Rediseño del único paso 6 (formulario) del tour de `/auth/register`: la insignia `compact` de 44px
+junto al titular se reemplaza por una composición "hero" en la mitad inferior de la pantalla, Nexa
+reacciona a qué campo tiene foco y a la validez del formulario, y el envío ahora aterriza en
+`/app/home` en vez de `/auth/create-pin`. Los 6 pasos anteriores del tour no se tocaron.
+
+## `NexaMascot.tsx` — nuevas props: `hero`, `lookAt`, estado `ready`
+
+- **`hero?: boolean`**: nuevo tamaño, mutuamente excluyente con `compact`. En vez de un tamaño fijo en
+  px usa una utilidad `.size-hero` (`min(50vh, 260px)` en ambas dimensiones) definida en
+  `src/styles/index.css`, para quedar claramente dominante en la mitad inferior del viewport sin
+  desbordar en pantallas bajas. `idle`/`compact` de los pasos 0-5 quedan exactamente como estaban.
+- **`lookAt?: 'left' | 'right' | 'up' | 'neutral'`**: agrega una pupila (círculo interior, color
+  `--color-primary` sobre el iris oscuro) dentro de cada ojo, antes círculos planos sin pupila. Como
+  ambos campos editables (nombre, correo) están arriba de Nexa en la composición final, `'left'` y
+  `'right'` desplazan la pupila hacia arriba Y hacia un lado (según cuál campo tiene foco), no
+  puramente lateral — `'up'` queda disponible como opción recta y `'neutral'` (default) es una mirada
+  relajada al frente, sin bloquear la mirada arriba-izquierda/arriba-derecha cuando ningún campo tiene
+  foco. La transición de la pupila es un `transition` CSS corto (180ms) sobre `cx`/`cy`, forzado a
+  `none` bajo `prefers-reduced-motion: reduce` — mismo patrón que ya usa el squash del parpadeo
+  (`blinking`) en este archivo.
+- **Nuevo `NexaState`: `'ready'`** (no se reutilizó `'excited'`, que ya está en uso estático en los
+  pasos 3 y 4 del tour). `'ready'` dispara un gesto de un solo disparo (`presenting`, clase
+  `animate-nexa-present`, nuevo keyframe en `index.css`) y cambia la boca a la sonrisa ancha que ya
+  existía para `'excited'` (reutilizada tal cual, variable interna renombrada a `wideSmile`). Tras el
+  gesto, Nexa queda en una flotación idle continua con algo más de amplitud (`animate-nexa-float-
+  energetic`, -9px vs. los -6px del loop normal) mientras el estado siga siendo `'ready'` — un ajuste
+  barato y deliberadamente contenido, no una animación nueva.
+- **Interpretación de "lanzar/presentar"**: el brief pedía un brazo que se mueva "hacia adelante y
+  abajo" en vez de la rotación lateral de `wave`. Se implementó como un nuevo keyframe
+  (`nexa-present`) sobre el mismo elemento "brazo" (div absoluto redondeado) ya usado por `wave`:
+  gira desde 0° hasta 50° con un `translateY` que lo empuja hacia abajo a mitad del gesto, y se asienta
+  en 32°/+4px — una lectura de "extender el brazo hacia el botón de abajo", no un lanzamiento literal
+  de un objeto (Nexa no tiene manos/objetos separados en el sistema de dibujo actual). Se consideró
+  fiel a la intención ("presentar/invitar hacia el botón") sin inventar un elemento gráfico nuevo
+  fuera del lenguaige geométrico ya establecido.
+- **Movimiento reducido**: el gesto `presenting` se omite directamente (mismo patrón que `wave`/
+  `float`) — bajo `prefers-reduced-motion: reduce`, Nexa renderiza directo en la pose final del brazo
+  (32°/+4px) y la sonrisa ancha, sin reproducir el swing.
+
+## `RegisterPage.tsx` — layout, validación de correo, disparo de `ready`, envío
+
+- **Layout del paso 6**: la mitad superior ahora es solo el titular + los tres campos (nombre, correo,
+  teléfono de solo lectura) con espaciados reducidos (`gap-3`/`h-11` en el chip de teléfono en vez de
+  `h-12`) para que quepan cómodos sin scroll en ~390×844. La mitad inferior es un contenedor
+  `flex-1 justify-end` con Nexa `hero` superpuesto (`-mb-6`) sobre el botón "Registrarse", que queda
+  anclado cerca del borde inferior con `safe-bottom` (mismo patrón `env(safe-area-inset-bottom)` que
+  ya usan `BottomSheet.tsx`/`TabBar.tsx`), para que la composición se lea como Nexa invitando hacia el
+  botón en vez de dos bloques apilados sin relación.
+- **Mirada direccional**: `onFocus`/`onBlur` en los inputs de nombre y correo alimentan un estado
+  `focusedField`, que se traduce a `lookAt` (`'name'` → `'left'`, `'email'` → `'right'`, ninguno →
+  `'neutral'`) pasado a `<NexaMascot lookAt={...} />`.
+- **Validación de correo**: se agregó `EMAIL_PATTERN` (regex simple `^[^\s@]+@[^\s@]+\.[^\s@]+$`,
+  deliberadamente no-RFC-5322) — el correo sigue siendo opcional (vacío es válido), pero si tiene
+  contenido debe matchear el patrón para que `canContinue` sea `true`. El campo muestra `error` en vez
+  de `helperText` cuando el formato es inválido.
+- **Botón renombrado**: "Continuar" → "Registrarse", solo en este paso — los demás pasos del tour
+  conservan sus labels existentes ("Vamos", "Siguiente" ×4, "Comenzar mi registro").
+- **Disparo de `ready`**: un `useEffect` compara `canContinue` contra su valor anterior (vía `ref`) y
+  solo activa `nexaReady` en la transición `false -> true`, nunca en cada re-render mientras el
+  formulario ya es válido; vuelve a `false` si el formulario deja de ser válido (por ejemplo, si el
+  usuario borra el nombre), para que el gesto pueda volver a dispararse si la validez se pierde y se
+  recupera.
+- **Envío**: sigue llamando `register(phone, { name, email })` exactamente igual que antes; el único
+  cambio es el destino post-registro (ver abajo).
+
+## `SplashPage.tsx` — parametrización con `redirectTo`
+
+Se agregó `SplashPageProps { redirectTo?: string }` con default `'/auth/phone'` — el valor exacto que
+antes estaba hardcodeado en el único `navigate()` interno del componente. La ruta `/` sigue montando
+`<SplashPage />` sin props, por lo que su comportamiento (destino, timing de las 3 fases, toda la
+secuencia visual de partículas/glow/zoom-exit) es idéntico al anterior — no se tocó ninguna otra línea
+de este archivo más allá de esa sustitución de string por prop con default. (Nota: en paralelo a este
+cambio, el propietario del proyecto siguió iterando la técnica de renderizado del glyph "N" dentro de
+este mismo archivo — de `-webkit-text-stroke` sobre texto a un doble-trazo SVG — sin relación con esta
+tarea; ambos cambios conviven sin conflicto porque tocan partes distintas del componente.)
+
+## Router — nueva ruta `/auth/loading`
+
+`src/app/router/index.tsx` agrega `{ path: '/auth/loading', element: <SplashPage redirectTo="/app/home" /> }`
+dentro del árbol de `AuthLayout`. `RegisterPage.tsx` navega a `/auth/loading` tras `register(...)` en
+vez de `/auth/create-pin`.
+
+## Confirmación explícita: el salto de creación de PIN es intencional
+
+Esta ruta de registro (`/auth/register` → envío válido → `/auth/loading` → `/app/home`) **omite
+deliberadamente** `/auth/create-pin` — fue una decisión de producto confirmada explícitamente por el
+propietario del proyecto para este flujo, no un bug ni un descuido de implementación. `CreatePinPage.tsx`
+y su ruta `/auth/create-pin` permanecen intactos en el código (siguen siendo alcanzables, por ejemplo
+desde el flujo de login vía `/auth/pin`/OTP existente) — no se eliminó nada, solo dejaron de estar
+enlazados desde este botón de envío en particular.

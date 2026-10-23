@@ -10,13 +10,18 @@ const DEMO_OTP_CODE = '123456';
 const RESEND_SECONDS = 30;
 
 function maskPhone(phone: string): string {
-  // "+51 987 654 321" -> "+51 9** *** 456" (keep first digit of first group
-  // and last 3 digits, mask the rest).
-  const digits = phone.replace(/\D/g, '').slice(2); // strip "51" country code
-  if (digits.length < 9) return phone;
+  // "+51 987 654 321" -> "+51 9** *** 456" (keep first digit of the national
+  // number and the last 3 digits, mask the rest). Country-agnostic since the
+  // E.123 country code picker on PhonePage means this is no longer always
+  // Peru/+51.
+  const match = phone.match(/^(\+\d+)\s+(.+)$/);
+  if (!match) return phone;
+  const [, dialCode, rest] = match;
+  const digits = rest.replace(/\D/g, '');
+  if (digits.length < 4) return phone;
   const first = digits[0];
   const last3 = digits.slice(-3);
-  return `+51 ${first}** *** ${last3}`;
+  return `${dialCode} ${first}** *** ${last3}`;
 }
 
 export function OtpPage() {

@@ -1,6 +1,7 @@
 import { createBrowserRouter, Navigate } from 'react-router-dom';
 import { AppLayout } from '@/app/layouts/AppLayout';
 import { AuthLayout } from '@/app/layouts/AuthLayout';
+import { SplashPage } from '@/features/splash/SplashPage';
 import { PhonePage } from '@/features/auth/PhonePage';
 import { OtpPage } from '@/features/auth/OtpPage';
 import { RegisterPage } from '@/features/auth/RegisterPage';
@@ -12,7 +13,7 @@ import { TransferPage } from '@/features/transfer/TransferPage';
 import { DevUiPage } from '@/features/dev-ui/DevUiPage';
 
 export const router = createBrowserRouter([
-  { path: '/', element: <Navigate to="/auth/phone" replace /> },
+  { path: '/', element: <SplashPage /> },
   { path: '/dev/ui', element: <DevUiPage /> },
   {
     element: <AuthLayout />,
@@ -20,6 +21,7 @@ export const router = createBrowserRouter([
       { path: '/auth/phone', element: <PhonePage /> },
       { path: '/auth/otp', element: <OtpPage /> },
       { path: '/auth/register', element: <RegisterPage /> },
+      { path: '/auth/loading', element: <SplashPage redirectTo="/app/home" /> },
       { path: '/auth/create-pin', element: <CreatePinPage /> },
       { path: '/auth/pin', element: <PinPage /> },
     ],
