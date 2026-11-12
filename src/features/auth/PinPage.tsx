@@ -1,9 +1,11 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ScanFace, Check } from 'lucide-react';
 import { Avatar } from '@/shared/ui/Avatar';
 import { NumericKeypad } from '@/shared/ui/NumericKeypad';
-import { useAuthStore, DEMO_PHONE, DEMO_NAME } from '@/shared/store/authStore';
+import { useAuthStore } from '@/shared/store/authStore';
+import { authApi } from '@/features/auth/authApi';
+import { getErrorMessage } from '@/shared/lib/api';
 
 const PIN_LENGTH = 4;
 
@@ -13,23 +15,27 @@ function prefersReducedMotion(): boolean {
 
 export function PinPage() {
   const navigate = useNavigate();
-  const storePhone = useAuthStore((s) => s.phone);
-  const getUser = useAuthStore((s) => s.getUser);
-  const verifyPin = useAuthStore((s) => s.verifyPin);
-  const forgetDevice = useAuthStore((s) => s.forgetDevice);
+  const phone = useAuthStore((s) => s.phone);
+  const user = useAuthStore((s) => s.user);
+  const setUser = useAuthStore((s) => s.setUser);
+  const setConfirmationToken = useAuthStore((s) => s.setConfirmationToken);
+  const clear = useAuthStore((s) => s.clear);
+  const displayName = user?.displayName ?? phone ?? '';
 
-  // Fall back to the seeded demo user if no phone is currently set, so this
-  // screen is never blank during dev testing (e.g. navigating here directly).
-  const phone = storePhone ?? DEMO_PHONE;
-  const user = getUser(phone);
-  const displayName = user?.name ?? DEMO_NAME;
+  useEffect(() => {
+    if (!phone) navigate('/auth/phone', { replace: true });
+  }, [phone, navigate]);
 
   const [pin, setPin] = useState('');
-  const [error, setError] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [shake, setShake] = useState(false);
+  const [verifying, setVerifying] = useState(false);
+  // Face ID here is still a visual simulation only — no real WebAuthn/biometric
+  // API wired in, see docs/DECISIONS.md. Left unchanged by this cableado pass.
   const [bioState, setBioState] = useState<'idle' | 'scanning' | 'success'>('idle');
 
-  function handleKey(key: string) {
+  async function handleKey(key: string) {
+    if (verifying) return;
     if (key === 'back') {
       setPin((p) => p.slice(0, -1));
       return;
@@ -37,18 +43,31 @@ export function PinPage() {
     if (pin.length >= PIN_LENGTH) return;
     const next = pin + key;
     setPin(next);
-    setError(false);
+    setError(null);
 
     if (next.length === PIN_LENGTH) {
-      if (verifyPin(phone, next)) {
+      setVerifying(true);
+      try {
+        const response = await authApi.verifyPin(next);
+        // /auth/pin/verify returns 200 with authenticated:false (not an HTTP
+        // error) for a wrong PIN — and never populates `user` either way,
+        // so a follow-up /auth/me is needed to hydrate the profile.
+        if (!response.authenticated) {
+          throw new Error('PIN incorrecto');
+        }
+        const me = await authApi.getMe();
+        setUser(me.user);
+        setConfirmationToken(response.confirmationToken);
         navigate('/app/home');
-      } else {
-        setError(true);
+      } catch (err) {
+        setError(getErrorMessage(err));
         setShake(true);
         window.setTimeout(() => {
           setShake(false);
           setPin('');
         }, 400);
+      } finally {
+        setVerifying(false);
       }
     }
   }
@@ -67,7 +86,7 @@ export function PinPage() {
   }
 
   function handleChangeNumber() {
-    forgetDevice(phone);
+    clear();
     navigate('/auth/phone');
   }
 
@@ -93,7 +112,7 @@ export function PinPage() {
         ))}
       </div>
 
-      {error && <p className="text-caption text-danger text-center mb-4">PIN incorrecto</p>}
+      {error && <p className="text-caption text-danger text-center mb-4">{error}</p>}
 
       {bioState !== 'idle' && (
         <div className="flex flex-col items-center gap-2 mb-4" aria-live="polite">

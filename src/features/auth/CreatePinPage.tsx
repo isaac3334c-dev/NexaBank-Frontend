@@ -1,20 +1,22 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { NumericKeypad } from '@/shared/ui/NumericKeypad';
-import { useAuthStore, DEMO_PHONE } from '@/shared/store/authStore';
+import { useAuthStore } from '@/shared/store/authStore';
+import { authApi } from '@/features/auth/authApi';
+import { getErrorMessage } from '@/shared/lib/api';
 
 const PIN_LENGTH = 4;
 
 export function CreatePinPage() {
   const navigate = useNavigate();
-  const phone = useAuthStore((s) => s.phone) ?? DEMO_PHONE;
-  const setPin = useAuthStore((s) => s.setPin);
+  const setUser = useAuthStore((s) => s.setUser);
 
   const [stage, setStage] = useState<'enter' | 'confirm'>('enter');
   const [firstPin, setFirstPin] = useState('');
   const [pin, setPinValue] = useState('');
-  const [error, setError] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [shake, setShake] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
   const title = stage === 'enter' ? 'Crea tu PIN' : 'Confirma tu PIN';
   const subtitle =
@@ -22,7 +24,8 @@ export function CreatePinPage() {
       ? 'Usarás este PIN de 4 dígitos para desbloquear tu billetera'
       : 'Ingresa el mismo PIN nuevamente';
 
-  function handleKey(key: string) {
+  async function handleKey(key: string) {
+    if (submitting) return;
     if (key === 'back') {
       setPinValue((p) => p.slice(0, -1));
       return;
@@ -38,12 +41,17 @@ export function CreatePinPage() {
           setStage('confirm');
           setPinValue('');
         }, 150);
-      } else {
-        if (next === firstPin) {
-          setPin(phone, next);
+      } else if (next === firstPin) {
+        setSubmitting(true);
+        try {
+          // /auth/pin/setup never populates `user` either — same follow-up
+          // fetch as PinPage.
+          await authApi.setupPin(next);
+          const me = await authApi.getMe();
+          setUser(me.user);
           navigate('/app/home');
-        } else {
-          setError(true);
+        } catch (err) {
+          setError(getErrorMessage(err));
           setShake(true);
           window.setTimeout(() => {
             setShake(false);
@@ -51,7 +59,18 @@ export function CreatePinPage() {
             setFirstPin('');
             setPinValue('');
           }, 400);
+        } finally {
+          setSubmitting(false);
         }
+      } else {
+        setError('Los PIN no coinciden. Intenta de nuevo.');
+        setShake(true);
+        window.setTimeout(() => {
+          setShake(false);
+          setStage('enter');
+          setFirstPin('');
+          setPinValue('');
+        }, 400);
       }
     }
   }
@@ -73,11 +92,7 @@ export function CreatePinPage() {
         ))}
       </div>
 
-      {error && (
-        <p className="text-caption text-danger text-center mb-4">
-          Los PIN no coinciden. Intenta de nuevo.
-        </p>
-      )}
+      {error && <p className="text-caption text-danger text-center mb-4">{error}</p>}
 
       <div className="mt-auto">
         <NumericKeypad onKey={handleKey} showDecimal={false} />

@@ -2,38 +2,44 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/shared/ui/Button';
 import { OtpInput } from '@/shared/ui/OtpInput';
-import { useAuthStore, DEMO_PHONE } from '@/shared/store/authStore';
+import { useAuthStore } from '@/shared/store/authStore';
+import { authApi } from '@/features/auth/authApi';
+import { getErrorMessage } from '@/shared/lib/api';
 
-// Mock verification only — no real SMS/backend is involved. Documented in
-// docs/DECISIONS.md. This is the one and only "valid" code for every phone.
-const DEMO_OTP_CODE = '123456';
 const RESEND_SECONDS = 30;
 
 function maskPhone(phone: string): string {
-  // "+51 987 654 321" -> "+51 9** *** 456" (keep first digit of the national
-  // number and the last 3 digits, mask the rest). Country-agnostic since the
-  // E.123 country code picker on PhonePage means this is no longer always
-  // Peru/+51.
-  const match = phone.match(/^(\+\d+)\s+(.+)$/);
+  // Stored phone is now strict E.164 ("+51987654321", no spaces — the
+  // backend's validation rejects the grouped E.123 presentation). There's
+  // no reliable boundary between dial code and national number without a
+  // full numbering-plan lookup, so this masks purely by position instead:
+  // keep "+" + first digit of the whole number and the last 3 digits.
+  const match = phone.match(/^(\+)(\d+)$/);
   if (!match) return phone;
-  const [, dialCode, rest] = match;
-  const digits = rest.replace(/\D/g, '');
+  const [, plus, digits] = match;
   if (digits.length < 4) return phone;
   const first = digits[0];
   const last3 = digits.slice(-3);
-  return `${dialCode} ${first}** *** ${last3}`;
+  const maskedLen = Math.max(digits.length - 4, 0);
+  return `${plus}${first}${'*'.repeat(maskedLen)}${last3}`;
 }
 
 export function OtpPage() {
   const navigate = useNavigate();
-  const phone = useAuthStore((s) => s.phone) ?? DEMO_PHONE;
-  const isRegistered = useAuthStore((s) => s.isRegistered);
-  const isDeviceRecognized = useAuthStore((s) => s.isDeviceRecognized);
+  const phone = useAuthStore((s) => s.phone);
+  const setUser = useAuthStore((s) => s.setUser);
 
   const [code, setCode] = useState('');
-  const [error, setError] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [shake, setShake] = useState(false);
+  const [verifying, setVerifying] = useState(false);
   const [secondsLeft, setSecondsLeft] = useState(RESEND_SECONDS);
+
+  // Can only land here after PhonePage set a phone via /auth/phone/start —
+  // no demo fallback anymore now that this calls the real backend.
+  useEffect(() => {
+    if (!phone) navigate('/auth/phone', { replace: true });
+  }, [phone, navigate]);
 
   useEffect(() => {
     if (secondsLeft <= 0) return;
@@ -43,32 +49,39 @@ export function OtpPage() {
 
   function handleChange(value: string) {
     setCode(value);
-    setError(false);
+    setErrorMsg(null);
     if (value.length === 6) {
       verify(value);
     }
   }
 
-  function verify(value: string) {
-    if (value !== DEMO_OTP_CODE) {
-      setError(true);
+  async function verify(value: string) {
+    if (!phone) return;
+    setVerifying(true);
+    try {
+      const response = await authApi.verifyPhone(phone, value);
+      if (response.requiresRegistration) {
+        navigate('/auth/register');
+      } else if (response.requiresPin) {
+        setUser(response.user);
+        navigate('/auth/create-pin');
+      } else {
+        setUser(response.user);
+        navigate('/auth/pin');
+      }
+    } catch (err) {
+      setErrorMsg(getErrorMessage(err));
       setShake(true);
       window.setTimeout(() => setShake(false), 400);
-      return;
-    }
-
-    if (!isRegistered(phone)) {
-      navigate('/auth/register');
-    } else if (!isDeviceRecognized(phone)) {
-      navigate('/auth/create-pin');
-    } else {
-      navigate('/app/home');
+    } finally {
+      setVerifying(false);
     }
   }
 
-  function handleResend() {
+  async function handleResend() {
+    if (!phone) return;
     setSecondsLeft(RESEND_SECONDS);
-    // No real resend — this is purely a mock countdown reset.
+    await authApi.startPhone(phone).catch(() => undefined);
   }
 
   return (
@@ -76,13 +89,14 @@ export function OtpPage() {
       <div className="flex flex-col gap-2 mb-8">
         <h1 className="text-h1 text-text">Verifica tu número</h1>
         <p className="text-body text-text-muted">
-          Enviamos un código de 6 dígitos a <span className="text-text font-medium">{maskPhone(phone)}</span>
+          Enviamos un código de 6 dígitos a{' '}
+          <span className="text-text font-medium">{phone ? maskPhone(phone) : ''}</span>
         </p>
       </div>
 
-      <OtpInput value={code} onChange={handleChange} error={error} className={shake ? 'animate-shake' : ''} />
+      <OtpInput value={code} onChange={handleChange} error={Boolean(errorMsg)} className={shake ? 'animate-shake' : ''} />
 
-      {error && <p className="text-caption text-danger mt-3">Código incorrecto. Inténtalo de nuevo.</p>}
+      {errorMsg && <p className="text-caption text-danger mt-3">{errorMsg}</p>}
 
       <div className="mt-6">
         {secondsLeft > 0 ? (
@@ -97,6 +111,7 @@ export function OtpPage() {
       <Button
         size="lg"
         fullWidth
+        loading={verifying}
         disabled={code.length !== 6}
         onClick={() => verify(code)}
         className="mt-auto mb-2"

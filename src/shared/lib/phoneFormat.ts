@@ -17,3 +17,10 @@ export function formatE123National(digits: string): string {
 export function formatE123(dialCode: string, nationalDigits: string): string {
   return `+${dialCode} ${formatE123National(nationalDigits)}`.trim();
 }
+
+// Strict E.164 (no spaces) — this is what the backend's phone validation
+// regexp (`^\+?[1-9]\d{1,14}$`) actually requires. formatE123's grouped
+// presentation is for display only; sending it to the API 400s.
+export function toE164(dialCode: string, nationalDigits: string): string {
+  return `+${dialCode}${nationalDigits}`;
+}

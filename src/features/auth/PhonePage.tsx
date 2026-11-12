@@ -1,46 +1,57 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ChevronDown, Phone } from 'lucide-react';
 import { Button } from '@/shared/ui/Button';
 import { LogoGlyph } from '@/shared/ui/LogoGlyph';
 import { useAuthStore } from '@/shared/store/authStore';
+import { authApi } from '@/features/auth/authApi';
+import { auth } from '@/shared/lib/firebase';
+import { getErrorMessage } from '@/shared/lib/api';
 import { CountryPickerSheet } from '@/features/auth/CountryPickerSheet';
 import { DEFAULT_COUNTRY, type Country } from '@/shared/lib/countries';
-import { formatE123, formatE123National } from '@/shared/lib/phoneFormat';
+import { formatE123National, toE164 } from '@/shared/lib/phoneFormat';
 
 export function PhonePage() {
   const navigate = useNavigate();
   const setPhone = useAuthStore((s) => s.setPhone);
-  const isRegistered = useAuthStore((s) => s.isRegistered);
-  const isDeviceRecognized = useAuthStore((s) => s.isDeviceRecognized);
   const [country, setCountry] = useState<Country>(DEFAULT_COUNTRY);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [localNumber, setLocalNumber] = useState('');
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Defensive net for entry points other than '/' (RootSplash already
+  // handles the normal case) — a still-valid session must never be asked
+  // to re-do phone+OTP, only PIN/Face ID.
+  useEffect(() => {
+    if (auth.currentUser) navigate('/auth/pin', { replace: true });
+  }, [navigate]);
 
   const digits = localNumber.replace(/\D/g, '');
   const canContinue = digits.length >= 7 && digits.length <= 12;
 
-  function handleSubmit(e: FormEvent) {
+  async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     if (!canContinue) return;
     setLoading(true);
-    // ITU-T E.123 international notation: "+<country code> <national number
-    // grouped in 2-3 digit clusters>", e.g. "+51 987 654 321".
-    const fullPhone = formatE123(country.dialCode, digits);
+    setError(null);
+    // Strict E.164 (no spaces) — the backend's phone validation rejects the
+    // E.123 grouped presentation format.
+    const fullPhone = toE164(country.dialCode, digits);
 
-    // Mock auth phase: no real backend lookup yet — routing decision is based
-    // purely on local authStore state. See docs/DECISIONS.md.
-    window.setTimeout(() => {
-      setLoading(false);
+    try {
+      // Always sends an OTP — the backend has no "recognized device" skip
+      // at this step; that only applies once registered, via requiresPin
+      // on /auth/phone/verify (handled in OtpPage).
+      await authApi.startPhone(fullPhone);
       setPhone(fullPhone);
-      if (isRegistered(fullPhone) && isDeviceRecognized(fullPhone)) {
-        navigate('/auth/pin');
-      } else {
-        navigate('/auth/otp');
-      }
-    }, 400);
+      navigate('/auth/otp');
+    } catch (err) {
+      setError(getErrorMessage(err));
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
@@ -99,6 +110,8 @@ export function PhonePage() {
             />
           </div>
         </div>
+
+        {error && <p className="text-caption text-danger">{error}</p>}
 
         <Button type="submit" size="lg" fullWidth loading={loading} disabled={!canContinue} className="mt-4">
           Continuar

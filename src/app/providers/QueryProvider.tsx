@@ -1,9 +1,8 @@
 import type { ReactNode } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
-// Installed now per project phasing (see docs/DECISIONS.md) — not wired to
-// any real fetching yet. Defaults are conservative so when real queries are
-// added later they don't unexpectedly refetch aggressively on a mobile
+// Backs the real queries in shared/lib/queries.ts (wallet, transactions).
+// Defaults are conservative so they don't refetch aggressively on a mobile
 // connection.
 const queryClient = new QueryClient({
   defaultOptions: {

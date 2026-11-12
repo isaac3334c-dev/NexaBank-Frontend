@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useWalletStore } from '@/shared/store/walletStore';
 import { useTransferFlowStore } from '../transferStore';
 import { formatMoney } from '@/shared/lib/money';
 import { Button } from '@/shared/ui/Button';
@@ -17,9 +16,8 @@ const CHECK_LENGTH = 48;
 
 export function ResultStep() {
   const navigate = useNavigate();
-  const account = useWalletStore((s) => s.account);
-  const contact = useTransferFlowStore((s) => s.contact);
-  const amount = useTransferFlowStore((s) => s.amount);
+  const recipient = useTransferFlowStore((s) => s.recipient);
+  const result = useTransferFlowStore((s) => s.result);
   const reset = useTransferFlowStore((s) => s.reset);
 
   const [settled, setSettled] = useState(prefersReducedMotion());
@@ -36,7 +34,7 @@ export function ResultStep() {
     return () => window.clearTimeout(timer);
   }, []);
 
-  if (!contact) return null;
+  if (!recipient || !result) return null;
 
   function handleFinish() {
     reset();
@@ -97,7 +95,8 @@ export function ResultStep() {
       >
         <h1 className="text-h2 text-text">¡Envío exitoso!</h1>
         <p className="text-body text-text-muted mt-1">
-          Enviaste {formatMoney({ amount, currency: account.balance.currency })} a {contact.name}
+          Enviaste {formatMoney({ amount: String(result.amount), currency: result.currency })} a{' '}
+          {recipient.displayName}
         </p>
       </div>
 
