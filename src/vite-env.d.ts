@@ -13,3 +13,15 @@ interface ImportMetaEnv {
 interface ImportMeta {
   readonly env: ImportMetaEnv;
 }
+
+// BarcodeDetector (https://developer.mozilla.org/en-US/docs/Web/API/Barcode_Detection_API)
+// isn't in TS's bundled DOM lib yet (Chrome/Edge/Android Chrome only, no
+// Safari/iOS as of this writing) — minimal ambient type for the subset
+// ScanPage.tsx actually uses, feature-detected at runtime via `'BarcodeDetector' in window`.
+interface DetectedBarcode {
+  rawValue: string;
+}
+declare class BarcodeDetector {
+  constructor(options?: { formats: string[] });
+  detect(source: CanvasImageSource): Promise<DetectedBarcode[]>;
+}

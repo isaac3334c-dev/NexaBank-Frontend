@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { QrCode, Search, Store } from 'lucide-react';
 import { AppHeader } from '@/shared/ui/AppHeader';
 import { Button } from '@/shared/ui/Button';
@@ -13,21 +13,23 @@ import { scanApi, type QrDecodeResult } from './scanApi';
 
 type ScanStep = 'input' | 'amount' | 'result';
 
-// No camera-based QR scanning library is bundled in this project yet
-// (no @zxing/qrcode-scanner-style dependency in package.json, and the
-// project's "no new dependencies unless strictly necessary" rule applies).
-// Rather than ship Scan QR as a pure stub, this implements the fully
-// functional fallback: paste/type the QR's raw payload (the same string a
-// camera scan would have extracted) and decode it through the real
-// GET /qr/decode endpoint. Wiring an actual camera (getUserMedia + a
-// decode library) is a follow-up — it only affects *how* qrData is
-// captured, not the decode/pay flow below, so swapping it in later is
-// additive.
+// Real camera scanning via the native Barcode Detection API (Chrome/Edge/
+// Android Chrome — no polyfill, no new dependency, per this project's "no
+// new dependencies unless strictly necessary" rule). Feature-detected at
+// runtime; Safari/iOS and any browser lacking `BarcodeDetector` fall back
+// to the manual paste/type input below, which exercises the exact same
+// decode -> confirm merchant -> PIN -> pay flow — only *how* qrData gets
+// filled changes.
+const CAMERA_SUPPORTED =
+  typeof window !== 'undefined' && 'BarcodeDetector' in window && !!navigator.mediaDevices?.getUserMedia;
+
 export function ScanPage() {
   const walletQuery = useWalletQuery();
   const invalidateWallet = useInvalidateWallet();
 
   const [step, setStep] = useState<ScanStep>('input');
+  const [manualEntry, setManualEntry] = useState(!CAMERA_SUPPORTED);
+  const [cameraError, setCameraError] = useState<string | null>(null);
   const [qrData, setQrData] = useState('');
   const [decoded, setDecoded] = useState<QrDecodeResult | null>(null);
   const [decoding, setDecoding] = useState(false);
@@ -38,14 +40,19 @@ export function ScanPage() {
   const [payError, setPayError] = useState<string | null>(null);
   const [payResult, setPayResult] = useState<{ ok: boolean; message: string } | null>(null);
 
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const rafRef = useRef<number | null>(null);
+  const scanLockedRef = useRef(false);
+
   const account = walletQuery.data?.[0];
 
-  async function handleDecode() {
-    if (!qrData.trim()) return;
+  async function decode(data: string) {
+    if (!data.trim()) return;
     setDecoding(true);
     setDecodeError(null);
     try {
-      const result = await scanApi.decode(qrData.trim());
+      const result = await scanApi.decode(data.trim());
       setDecoded(result);
       setStep('amount');
     } catch (err) {
@@ -54,6 +61,71 @@ export function ScanPage() {
       setDecoding(false);
     }
   }
+
+  function handleDecode() {
+    return decode(qrData);
+  }
+
+  function stopCamera() {
+    if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
+    rafRef.current = null;
+    streamRef.current?.getTracks().forEach((track) => track.stop());
+    streamRef.current = null;
+  }
+
+  useEffect(() => {
+    if (step !== 'input' || manualEntry) {
+      stopCamera();
+      return;
+    }
+
+    let cancelled = false;
+    const detector = new BarcodeDetector({ formats: ['qr_code'] });
+
+    async function start() {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+        if (cancelled) {
+          stream.getTracks().forEach((track) => track.stop());
+          return;
+        }
+        streamRef.current = stream;
+        setCameraError(null);
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          await videoRef.current.play();
+        }
+        scanLockedRef.current = false;
+
+        const tick = async () => {
+          if (cancelled || scanLockedRef.current || !videoRef.current) return;
+          try {
+            const codes = await detector.detect(videoRef.current);
+            if (codes.length > 0) {
+              scanLockedRef.current = true;
+              const value = codes[0].rawValue;
+              setQrData(value);
+              stopCamera();
+              await decode(value);
+              return;
+            }
+          } catch {
+            // Transient detect() failures (e.g. video not ready yet) — keep polling.
+          }
+          rafRef.current = requestAnimationFrame(tick);
+        };
+        rafRef.current = requestAnimationFrame(tick);
+      } catch {
+        if (!cancelled) setCameraError('No pudimos acceder a tu cámara. Revisa los permisos del navegador.');
+      }
+    }
+
+    start();
+    return () => {
+      cancelled = true;
+      stopCamera();
+    };
+  }, [step, manualEntry]);
 
   function handleAmountKey(key: string) {
     if (key === 'back') {
@@ -96,6 +168,8 @@ export function ScanPage() {
     setAmount('');
     setPayError(null);
     setPayResult(null);
+    setManualEntry(!CAMERA_SUPPORTED);
+    setCameraError(null);
   }
 
   return (
@@ -103,15 +177,37 @@ export function ScanPage() {
       <AppHeader title="Escanear QR" onBack={step !== 'input' ? handleReset : undefined} />
 
       <div className="flex-1 flex flex-col px-5 pt-4">
-        {step === 'input' && (
+        {step === 'input' && !manualEntry && (
+          <div className="flex flex-col gap-4">
+            <div className="relative w-full aspect-square rounded-[var(--radius-lg)] overflow-hidden bg-surface-2">
+              <video ref={videoRef} className="w-full h-full object-cover" muted playsInline />
+              <div className="absolute inset-[18%] border-2 border-primary rounded-[var(--radius-md)] pointer-events-none" />
+            </div>
+
+            {decoding && <p className="text-caption text-text-muted text-center">Verificando código…</p>}
+            {decodeError && <p className="text-caption text-danger text-center">{decodeError}</p>}
+            {cameraError && <p className="text-caption text-danger text-center">{cameraError}</p>}
+
+            <button
+              type="button"
+              className="text-caption font-medium text-primary text-center"
+              onClick={() => setManualEntry(true)}
+            >
+              Ingresar código manualmente
+            </button>
+          </div>
+        )}
+
+        {step === 'input' && manualEntry && (
           <div className="flex flex-col gap-4">
             <div className="flex flex-col items-center gap-3 py-6 text-center">
               <span className="flex items-center justify-center size-16 rounded-full bg-surface-2 text-text-muted">
                 <QrCode className="size-7" />
               </span>
               <p className="text-body text-text-muted max-w-[280px]">
-                La cámara no está disponible en esta versión. Pega o escribe el código QR del
-                comercio para continuar.
+                {CAMERA_SUPPORTED
+                  ? 'Pega o escribe el código QR del comercio para continuar.'
+                  : 'La cámara no está disponible en este navegador. Pega o escribe el código QR del comercio para continuar.'}
               </p>
             </div>
 
@@ -134,6 +230,16 @@ export function ScanPage() {
             >
               Continuar
             </Button>
+
+            {CAMERA_SUPPORTED && (
+              <button
+                type="button"
+                className="text-caption font-medium text-primary text-center"
+                onClick={() => setManualEntry(false)}
+              >
+                Usar la cámara
+              </button>
+            )}
           </div>
         )}
 
